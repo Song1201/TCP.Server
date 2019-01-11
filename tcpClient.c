@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #define DEST_PORT 2000
-#define SERVER_IP_ADDRESS "192.168.70.106"
+#define SERVER_IP_ADDRESS "192.168.70.106" 
 
 testStructType clientData;
 resultStructType result;
