@@ -1,6 +1,6 @@
-#include <netdb.h>
-#include "common.h"
-#include <stdio.h>
+#include <netdb.h> // To use sockaddr
+#include "common.h" // Message structure
+#include <stdio.h> // To use printf
 
 #define DEST_PORT 2000
 #define SERVER_IP_ADDRESS "127.0.0.1" 
