@@ -1,14 +1,11 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <memory.h>
-#include <sys/select.h>
-#include <stdio.h>
-#include <errno.h>
-#include "common.h"
-#include <stdlib.h>
-#include <unistd.h>
+#include <arpa/inet.h> // To use inet_ntoa
+#include <memory.h> // To use memset
+#include <sys/select.h> // To use fd_set
+#include <stdio.h> // To use printf
+#include <errno.h> // To use errno
+#include "common.h" // Message stucture
+#include <stdlib.h> // To use exit
+#include <unistd.h> // To use close
 
 #define SERVER_PORT 2000
 #define MAX_CLIENT_SUPPORTED 32
