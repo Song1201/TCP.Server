@@ -20,7 +20,7 @@ struct sockaddr_in setupDestIPv4() {
   // sockaddr_in means destination(server) address is IPv4 address
   struct sockaddr_in dest; 
   dest.sin_family = AF_INET; // Address Family is IPv4 address
-  printf("Please input server IPv4 address: ");
+  printf("Please enter server IPv4 address: ");
   char SERVER_IPV4_ADDR[IPV4_ADDR_MAX_LEN+1];
   fgets(SERVER_IPV4_ADDR,sizeof(SERVER_IPV4_ADDR),stdin);
   // Remove the '\n' from input string.
@@ -29,7 +29,7 @@ struct sockaddr_in setupDestIPv4() {
     printf("Failed to read server IPv4 address. Exiting program.\n");
     exit(1);
   }
-  printf("Please input server port number: ");
+  printf("Please enter server port number: ");
   unsigned short DEST_PORT;
   scanf("%hu",&DEST_PORT);
   dest.sin_port = DEST_PORT;

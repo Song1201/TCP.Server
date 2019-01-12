@@ -6,9 +6,12 @@
 #include "common.h" // Message stucture
 #include <stdlib.h> // To use exit
 #include <unistd.h> // To use close
+#include <search.h> // To use hcreate(), hsearch()
 
-#define SERVER_PORT 2000
 #define MAX_CLIENT_SUPPORTED 32
+#define MAX_USERNAME_LEN 20
+#define PASSWORD_LEN 256
+#define MAX_NUM_USER 10000
 
 char dataBuffer[1024];
 int monitoredFdSet[MAX_CLIENT_SUPPORTED];
@@ -50,7 +53,7 @@ static void rmFromMonitoredFdSet(int sockFd) {
   }
 }
 
-void setupTcpServerCommunication() {
+void setupTcpServerCommunication(unsigned short SERVER_PORT) {
   int masterSockTcpFd = 0, sentRecvBytes = 0, addrLen = 0;
   int commSockFd = 0;
   fd_set readFds;
@@ -134,6 +137,24 @@ void setupTcpServerCommunication() {
 
 int main(int argc, char const *argv[])
 {
-  setupTcpServerCommunication();
+  FILE *confPtr = fopen("server.conf","r");
+
+  // Read server port
+  unsigned short SERVER_PORT;
+  int fileState = fscanf(confPtr,"%hu",&SERVER_PORT);
+  printf("%hu\n",SERVER_PORT);
+
+  // Put all usernames and passwords into a hash table
+  int userInfo = hcreate(MAX_NUM_USER);
+  char username[MAX_USERNAME_LEN+1];
+  char password[PASSWORD_LEN];
+  while (fscanf(confPtr,"%s",username) != EOF) {
+    fscanf(confPtr,"%s",password);
+    ENTRY userEntry = {.key=username, .data=password};
+    hsearch(userEntry,ENTER);
+  }
+  fclose(confPtr);
+
+  // setupTcpServerCommunication(SERVER_PORT);
   return 0;
 }

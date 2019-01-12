@@ -9,3 +9,6 @@ connections and sent/received packets.
 3. Client can send 2 integers to the server, then server sends back the sum.
 4. Setup connection ending signals.
 5. Deal with overflow, illegal inputs. 
+
+
+Username length, max number of registered users.
