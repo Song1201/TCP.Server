@@ -7,10 +7,10 @@
 #include <stdlib.h> // To use exit
 #include <unistd.h> // To use close
 #include <search.h> // To use hcreate(), hsearch()
+#include <string.h> // To use strcpy()
 
 #define MAX_CLIENT_SUPPORTED 32
-#define MAX_USERNAME_LEN 20
-#define PASSWORD_LEN 256
+#define PASSWORD_HASH_LEN 256
 #define MAX_NUM_USER 10000
 
 char dataBuffer[1024];
@@ -135,25 +135,59 @@ void setupTcpServerCommunication(unsigned short SERVER_PORT) {
   }
 }
 
-int main(int argc, char const *argv[])
-{
+char *strdup(const char *origin) {
+  char *copy = malloc(sizeof(origin));
+  strcpy(copy, origin);
+  return copy;
+}
+
+unsigned short loadServerConf() {
   FILE *confPtr = fopen("server.conf","r");
 
-  // Read server port
   unsigned short SERVER_PORT;
-  int fileState = fscanf(confPtr,"%hu",&SERVER_PORT);
-  printf("%hu\n",SERVER_PORT);
+  fscanf(confPtr,"%hu",&SERVER_PORT);
 
-  // Put all usernames and passwords into a hash table
-  int userInfo = hcreate(MAX_NUM_USER);
+  if (hcreate(MAX_NUM_USER) == 0) {
+    printf("Failed to create hash table for user info.\n");
+    exit(1);
+  } 
+    
   char username[MAX_USERNAME_LEN+1];
-  char password[PASSWORD_LEN];
+  char passwordHash[PASSWORD_HASH_LEN+1];
   while (fscanf(confPtr,"%s",username) != EOF) {
-    fscanf(confPtr,"%s",password);
-    ENTRY userEntry = {.key=username, .data=password};
+    fscanf(confPtr,"%s",passwordHash);
+    ENTRY userEntry = {.key=strdup(username), .data=strdup(passwordHash)};
     hsearch(userEntry,ENTER);
   }
   fclose(confPtr);
+
+  return SERVER_PORT;
+}
+
+void testHashTable() {
+  printf("Testing Hash table...\nPlease enter an username: ");
+  char username[MAX_USERNAME_LEN+1];
+  fgets(username,sizeof(username),stdin);
+  username[strlen(username)-1] = '\0'; // Remove the trailing '\n' from stdin
+  ENTRY query = {.key=username};
+  ENTRY *entry = hsearch(query,FIND);
+  if (entry == NULL) printf("Username doesn't exist.\n");
+  else printf("Username: %s  Password: %s\n",entry->key,(char*)entry->data);
+  printf("Test done.\n\n");
+}
+
+int main(int argc, char const *argv[])
+{
+  const unsigned short SERVER_PORT = loadServerConf();
+
+  // make login tlv
+  char *login = "lsc\n9999\n";
+  tlv loginInfo = {.type=LOGIN, .length=MAX_USERNAME_LEN+MAX_PASSWORD_LEN, 
+    .value=login};
+
+  printf("%d\n%d\n%s\n",loginInfo.type,loginInfo.length,loginInfo.value);
+
+  testHashTable();
 
   // setupTcpServerCommunication(SERVER_PORT);
   return 0;
