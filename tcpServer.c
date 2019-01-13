@@ -75,30 +75,9 @@ static unsigned short loadServerConf() {
   return SERVER_PORT;
 }
 
-// Uncomment this function to test the hash table used for storing usernames and 
-//  password hash values. Call this function after calling loadServerConf().
-// static void testHashTable() {
-//   printf("Testing Hash table...\nPlease enter an username: ");
-//   char username[MAX_USERNAME_LEN+1];
-//   fgets(username,sizeof(username),stdin);
-//   username[strlen(username)-1] = '\0'; // Remove the trailing '\n' from stdin
-//   ENTRY query = {.key=username};
-//   ENTRY *entry = hsearch(query,FIND);
-//   if (entry == NULL) printf("Username doesn't exist.\n");
-//   else printf("Username: %s  Password: %s\n",entry->key,(char*)entry->data);
-//   printf("Test done.\n");
-// }
 
-int main(int argc, char const *argv[]) {
-  // make login tlv
-  // char *login = "lsc\n9999\n";
-  // tlv loginInfo = {.type=LOGIN, .length=MAX_USERNAME_LEN+MAX_PASSWORD_LEN, 
-  //   .value=login};
 
-  // printf("%d\n%d\n%s\n",loginInfo.type,loginInfo.length,loginInfo.value);
-
-  const unsigned short SERVER_PORT = loadServerConf();
-
+static int createMasterSocket(const unsigned short SERVER_PORT) {
   int masterSockFd;
   if ((masterSockFd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP)) == -1) {
     printf("Failed to create master socket!\n");
@@ -120,42 +99,62 @@ int main(int argc, char const *argv[]) {
     exit(1);
   }  
 
-  int fdArray[MAX_CLIENT_SUPPORTED];
-  char fdStatus[MAX_CLIENT_SUPPORTED];
+  return masterSockFd;
+}
 
+static void initClientSockets(int *fdArray, char *fdStatus) {
   for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
     fdArray[i] = NON_EXIST;
     fdStatus[i] = EMPTY;
   }
+}
+
+static void initFdSet(fd_set *fdSetPtr, int masterSockFd, int *fdArray) {
+  FD_ZERO(fdSetPtr);
+  FD_SET(masterSockFd, fdSetPtr);
+  for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+    if (fdArray[i] != NON_EXIST) FD_SET(fdArray[i], fdSetPtr);
+  } 
+} 
+
+static void createNewConnection(int masterSockFd, int *fdArray) {
+  printf("New connection received.\n");
+  struct sockaddr_in clientAddr;
+  int clientAddrLen;
+  int commSockFd = accept(masterSockFd, (struct sockaddr*)&clientAddr,
+    (socklen_t*)&clientAddrLen);
+  if (commSockFd<0) {
+    printf("Accept error: errno = %d\n",errno);
+    exit(1);
+  }
+  addToFdArray(commSockFd,fdArray);
+  printf("Connection acceptted from client: %s:%u\n",
+    inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
+}
+
+int main(int argc, char const *argv[]) {
+  // make login tlv
+  // char *login = "lsc\n9999\n";
+  // tlv loginInfo = {.type=LOGIN, .length=MAX_USERNAME_LEN+MAX_PASSWORD_LEN, 
+  //   .value=login};
+
+  // printf("%d\n%d\n%s\n",loginInfo.type,loginInfo.length,loginInfo.value);
+
+  const unsigned short SERVER_PORT = loadServerConf();
+  int masterSockFd = createMasterSocket(SERVER_PORT);
+  int fdArray[MAX_CLIENT_SUPPORTED];
+  char fdStatus[MAX_CLIENT_SUPPORTED];
+  initClientSockets(fdArray, fdStatus);
 
   while (1) {
     fd_set fdSet;
-    FD_ZERO(&fdSet);
-    FD_SET(masterSockFd,&fdSet);
-
-    for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
-      if (fdArray[i] != NON_EXIST) FD_SET(fdArray[i],&fdSet);
-      else break;
-    } 
+    initFdSet(&fdSet, masterSockFd, fdArray);
     printf("Blocked on select system call...\n");
-
     select(getMaxFd(masterSockFd,fdArray)+1,&fdSet,NULL,NULL,NULL);
-    if (FD_ISSET(masterSockFd,&fdSet)) {   
-      printf("New connection received. Accept the connection. Client and " 
-        "server completes TCP 3-way handshake at this point.\n");
 
-      struct sockaddr_in clientAddr;
-      int clientAddrLen;
-      int commSockFd = accept(masterSockFd, (struct sockaddr*)&clientAddr,
-        (socklen_t*)&clientAddrLen);
-      if (commSockFd<0) {
-        printf("Accept error: errno = %d\n",errno);
-        exit(1);
-      }
-      addToFdArray(commSockFd,fdArray);
-      printf("Connection acceptted from client: %s:%u\n",
-        inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
-    } else {
+    if (FD_ISSET(masterSockFd, &fdSet)) 
+      createNewConnection(masterSockFd, fdArray);
+    else {
       for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
         if (FD_ISSET(fdArray[i], &fdSet)) {
           int commSockFd = fdArray[i];
@@ -196,3 +195,20 @@ int main(int argc, char const *argv[]) {
 
   return 0;
 }
+
+// DO NOT DELETE THESE COMMENTS!!!!!!!!!!!!!!!!!!!!!
+// DO NOT DELETE THESE COMMENTS!!!!!!!!!!!!!!!!!!!!!
+// DO NOT DELETE THESE COMMENTS!!!!!!!!!!!!!!!!!!!!!
+// Uncomment this function to test the hash table used for storing usernames and 
+//  password hash values. Call this function after calling loadServerConf().
+// static void testHashTable() {
+//   printf("Testing Hash table...\nPlease enter an username: ");
+//   char username[MAX_USERNAME_LEN+1];
+//   fgets(username,sizeof(username),stdin);
+//   username[strlen(username)-1] = '\0'; // Remove the trailing '\n' from stdin
+//   ENTRY query = {.key=username};
+//   ENTRY *entry = hsearch(query,FIND);
+//   if (entry == NULL) printf("Username doesn't exist.\n");
+//   else printf("Username: %s  Password: %s\n",entry->key,(char*)entry->data);
+//   printf("Test done.\n");
+// }
