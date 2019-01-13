@@ -12,136 +12,47 @@
 #define MAX_CLIENT_SUPPORTED 32
 #define PASSWORD_HASH_LEN 256
 #define MAX_NUM_USER 10000
+#define EMPTY 0
+#define CONNECTED 1
+#define VERIFIED 2
+#define ADDR_LEN sizeof(struct sockaddr)
+#define MAX_CONNECT_REQUEST 5
+#define NON_EXIST -1
 
-char dataBuffer[1024];
-int monitoredFdSet[MAX_CLIENT_SUPPORTED];
 
-static void initializeMonitorFdSet() {
-  for (int i = 0;i < MAX_CLIENT_SUPPORTED;i++) 
-    monitoredFdSet[i] = -1;
-}
-
-static void addToMonitoredFdSet(int sockFd) {
-  for (int i = 0;i < MAX_CLIENT_SUPPORTED;i++) {
-    if (monitoredFdSet[i] != -1) continue;
-    monitoredFdSet[i] = sockFd;
-    return;
-  }
-}
-
-static void reInitReadFds(fd_set *fdSetPtr) {
-  FD_ZERO(fdSetPtr);
-  for (int i = 0;i < MAX_CLIENT_SUPPORTED;i++) {
-    if (monitoredFdSet[i] != -1) FD_SET(monitoredFdSet[i],fdSetPtr);
-  }
-}
-
-static int getMaxFd() {
-  int max = -1;
-  for (int i = 0;i < MAX_CLIENT_SUPPORTED;i++) {
-    if (monitoredFdSet[i] > max) max = monitoredFdSet[i];
-  }
-  return max;
-}
-
-static void rmFromMonitoredFdSet(int sockFd) {
-  for (int i=0;i<MAX_CLIENT_SUPPORTED;i++) {
-    if (monitoredFdSet[i] == sockFd) {
-      monitoredFdSet[i] = -1;
+static void addToFdArray(int sockFd, int *fdArray) {
+  for (int i=0; i<MAX_CLIENT_SUPPORTED;i++) {
+    if (fdArray[i] == NON_EXIST) {
+      fdArray[i] = sockFd;
       return;
     }
   }
 }
 
-void setupTcpServerCommunication(unsigned short SERVER_PORT) {
-  int masterSockTcpFd = 0, sentRecvBytes = 0, addrLen = 0;
-  int commSockFd = 0;
-  fd_set readFds;
-
-  struct sockaddr_in serverAddr,clientAddr;
-  initializeMonitorFdSet();
-
-  if ((masterSockTcpFd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP)) == -1) {
-    printf("Master socket creation failed!\n");
-    exit(1);
+static int getMaxFd(const int masterSockFd, const int *fdArray) {
+  int max = masterSockFd;
+  for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+    if (fdArray[i]>max) max = fdArray[i];
   }
+  return max;
+}
 
-  serverAddr.sin_family = AF_INET; 
-  serverAddr.sin_port = SERVER_PORT;
-  serverAddr.sin_addr.s_addr = INADDR_ANY;
-  addrLen = sizeof(struct sockaddr);
-
-  if (bind(masterSockTcpFd,(struct sockaddr*)&serverAddr,addrLen) == -1) {
-    printf("Master socket bind failed!\n");
-    return;
-  }
-
-  if (listen(masterSockTcpFd,5) < 0) {
-    printf("listen failed!\n");
-    return; 
-  }
-  addToMonitoredFdSet(masterSockTcpFd);
-
-  while (1) {
-    reInitReadFds(&readFds);
-    printf("Blocked on select system call...\n");
-
-    select(getMaxFd()+1,&readFds,NULL,NULL,NULL);
-    if (FD_ISSET(masterSockTcpFd,&readFds)) {   
-      printf("New connection received. Accept the connection. Client and " 
-        "server completes TCP 3-way handshake at this point.\n");
-      commSockFd = accept(masterSockTcpFd,(struct sockaddr*)&clientAddr,
-        (socklen_t*)&addrLen);
-      if (commSockFd < 0) {
-        printf("Accept error: errno = %d\n",errno);
-        exit(0);
-      }
-      addToMonitoredFdSet(commSockFd);
-      printf("Connection acceptted from client: %s:%u\n",
-        inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
-    } else {
-      int commSockFd = -1;
-      for (int i=0;i<MAX_CLIENT_SUPPORTED;i++) {
-        if (FD_ISSET(monitoredFdSet[i],&readFds)) {
-          commSockFd = monitoredFdSet[i];
-          memset(dataBuffer,0,sizeof(dataBuffer));
-          sentRecvBytes = recvfrom(commSockFd,dataBuffer,sizeof(dataBuffer),0,
-            (struct sockaddr*)&clientAddr, (socklen_t*)&addrLen);
-          printf("Server received %d bytes from client %s:%u\n",sentRecvBytes,
-            inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
-          if (sentRecvBytes == 0) {
-            close(commSockFd);
-            rmFromMonitoredFdSet(commSockFd);
-            break;
-          }
-          testStructType *clientData = (testStructType*)dataBuffer;
-          if (clientData->a == 0 && clientData->b == 0) {
-            close(commSockFd);
-            rmFromMonitoredFdSet(commSockFd);
-            printf("Server closes connection with client: %s:%u\n",inet_ntoa(
-              clientAddr.sin_addr),ntohs(clientAddr.sin_port));
-            break;
-          }
-          resultStructType result;
-          result.c = clientData->a + clientData->b;
-          sentRecvBytes = sendto(commSockFd,(char*)&result,
-            sizeof(resultStructType),0,(struct sockaddr*)&clientAddr,
-            sizeof(struct sockaddr));
-          printf("Server sent %d bytes in reply to client.\n",sentRecvBytes);
-
-        }
-      }
+static void rmFromFdArray(int sockFd, int *fdArray) {
+  for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+    if (fdArray[i] == sockFd) {
+      fdArray[i] = -1;
+      return;
     }
   }
 }
 
-char *strdup(const char *origin) {
+static char *strdup(const char *origin) {
   char *copy = malloc(sizeof(origin));
   strcpy(copy, origin);
   return copy;
 }
 
-unsigned short loadServerConf() {
+static unsigned short loadServerConf() {
   FILE *confPtr = fopen("server.conf","r");
 
   unsigned short SERVER_PORT;
@@ -164,31 +75,124 @@ unsigned short loadServerConf() {
   return SERVER_PORT;
 }
 
-void testHashTable() {
-  printf("Testing Hash table...\nPlease enter an username: ");
-  char username[MAX_USERNAME_LEN+1];
-  fgets(username,sizeof(username),stdin);
-  username[strlen(username)-1] = '\0'; // Remove the trailing '\n' from stdin
-  ENTRY query = {.key=username};
-  ENTRY *entry = hsearch(query,FIND);
-  if (entry == NULL) printf("Username doesn't exist.\n");
-  else printf("Username: %s  Password: %s\n",entry->key,(char*)entry->data);
-  printf("Test done.\n\n");
-}
+// Uncomment this function to test the hash table used for storing usernames and 
+//  password hash values. Call this function after calling loadServerConf().
+// static void testHashTable() {
+//   printf("Testing Hash table...\nPlease enter an username: ");
+//   char username[MAX_USERNAME_LEN+1];
+//   fgets(username,sizeof(username),stdin);
+//   username[strlen(username)-1] = '\0'; // Remove the trailing '\n' from stdin
+//   ENTRY query = {.key=username};
+//   ENTRY *entry = hsearch(query,FIND);
+//   if (entry == NULL) printf("Username doesn't exist.\n");
+//   else printf("Username: %s  Password: %s\n",entry->key,(char*)entry->data);
+//   printf("Test done.\n");
+// }
 
-int main(int argc, char const *argv[])
-{
+int main(int argc, char const *argv[]) {
+  // make login tlv
+  // char *login = "lsc\n9999\n";
+  // tlv loginInfo = {.type=LOGIN, .length=MAX_USERNAME_LEN+MAX_PASSWORD_LEN, 
+  //   .value=login};
+
+  // printf("%d\n%d\n%s\n",loginInfo.type,loginInfo.length,loginInfo.value);
+
   const unsigned short SERVER_PORT = loadServerConf();
 
-  // make login tlv
-  char *login = "lsc\n9999\n";
-  tlv loginInfo = {.type=LOGIN, .length=MAX_USERNAME_LEN+MAX_PASSWORD_LEN, 
-    .value=login};
+  int masterSockFd;
+  if ((masterSockFd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP)) == -1) {
+    printf("Failed to create master socket!\n");
+    exit(1);
+  }
 
-  printf("%d\n%d\n%s\n",loginInfo.type,loginInfo.length,loginInfo.value);
+  // AF_INET for using IPv4 address, INADDR_ANY for later binding the socket to
+  // all available local interfaces. 
+  struct sockaddr_in serverAddr = {.sin_family=AF_INET, .sin_port=SERVER_PORT, 
+    .sin_addr.s_addr=INADDR_ANY};
 
-  testHashTable();
+  if (bind(masterSockFd,(struct sockaddr*)&serverAddr,ADDR_LEN) == -1) {
+    printf("Failed to bind master socket!\n");
+    exit(1);
+  }
 
-  // setupTcpServerCommunication(SERVER_PORT);
+  if (listen(masterSockFd, MAX_CONNECT_REQUEST) < 0) {
+    printf("Failed to listen!\n");
+    exit(1);
+  }  
+
+  int fdArray[MAX_CLIENT_SUPPORTED];
+  char fdStatus[MAX_CLIENT_SUPPORTED];
+
+  for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+    fdArray[i] = NON_EXIST;
+    fdStatus[i] = EMPTY;
+  }
+
+  while (1) {
+    fd_set fdSet;
+    FD_ZERO(&fdSet);
+    FD_SET(masterSockFd,&fdSet);
+
+    for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+      if (fdArray[i] != NON_EXIST) FD_SET(fdArray[i],&fdSet);
+      else break;
+    } 
+    printf("Blocked on select system call...\n");
+
+    select(getMaxFd(masterSockFd,fdArray)+1,&fdSet,NULL,NULL,NULL);
+    if (FD_ISSET(masterSockFd,&fdSet)) {   
+      printf("New connection received. Accept the connection. Client and " 
+        "server completes TCP 3-way handshake at this point.\n");
+
+      struct sockaddr_in clientAddr;
+      int clientAddrLen;
+      int commSockFd = accept(masterSockFd, (struct sockaddr*)&clientAddr,
+        (socklen_t*)&clientAddrLen);
+      if (commSockFd<0) {
+        printf("Accept error: errno = %d\n",errno);
+        exit(1);
+      }
+      addToFdArray(commSockFd,fdArray);
+      printf("Connection acceptted from client: %s:%u\n",
+        inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
+    } else {
+      for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+        if (FD_ISSET(fdArray[i], &fdSet)) {
+          int commSockFd = fdArray[i];
+          char dataBuffer[1024];
+          memset(dataBuffer,0,sizeof(dataBuffer));
+          
+          struct sockaddr_in clientAddr;
+          int clientAddrLen;
+          int sentRecvBytes = recvfrom(commSockFd, dataBuffer, 
+            sizeof(dataBuffer), 0, (struct sockaddr*)&clientAddr, 
+            (socklen_t*)&clientAddrLen);
+          printf("Server received %d bytes from client %s:%u\n",sentRecvBytes,
+            inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
+          if (sentRecvBytes == 0) {
+            close(commSockFd);
+            rmFromFdArray(commSockFd, fdArray);
+            break;
+          }
+          testStructType *clientData = (testStructType*)dataBuffer;
+          if (clientData->a == 0 && clientData->b == 0) {
+            close(commSockFd);
+            rmFromFdArray(commSockFd, fdArray);
+            printf("Server closes connection with client: %s:%u\n",inet_ntoa(
+              clientAddr.sin_addr),ntohs(clientAddr.sin_port));
+            break;
+          }
+          resultStructType result;
+          result.c = clientData->a + clientData->b;
+          sentRecvBytes = sendto(commSockFd,(char*)&result,
+            sizeof(resultStructType),0,(struct sockaddr*)&clientAddr,
+            sizeof(struct sockaddr));
+          printf("Server sent %d bytes in reply to client.\n",sentRecvBytes);
+
+        }
+      }
+    }
+  }
+
   return 0;
 }

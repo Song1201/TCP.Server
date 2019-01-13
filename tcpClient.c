@@ -44,7 +44,7 @@ int connectToDest(const struct sockaddr_in dest) {
     printf("Connection to server failed.\nFailed server IPv4 address: %s\n"
       "Failed server port number: %hu\n",inet_ntoa(dest.sin_addr),
       dest.sin_port);
-    printf("Exiting program.\n\n");
+    printf("Exiting program.\n");
     exit(1);
   }
   printf("Connected to server.\nConnected server IPv4 address: %s\n"
