@@ -133,6 +133,15 @@ static void acceptConnection(int masterSockFd, int *fdArray) {
     inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
 }
 
+static void receiveData(const int commSockFd, struct sockaddr_in *clientAddrPtr, 
+char *data) {
+  socklen_t clientAddrLen = ADDR_LEN;
+  getpeername(commSockFd, (struct sockaddr*)clientAddrPtr,&clientAddrLen); 
+  int sentRecvBytes = recvfrom(commSockFd, data, sizeof(data), 0, NULL, NULL);
+  printf("Server received %d bytes from client %s:%u\n",sentRecvBytes,
+    inet_ntoa(clientAddrPtr->sin_addr),ntohs(clientAddrPtr->sin_port));
+}
+
 int main(int argc, char const *argv[]) {
   // make login tlv
   // char *login = "lsc\n9999\n";
@@ -159,15 +168,9 @@ int main(int argc, char const *argv[]) {
       for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
         if (FD_ISSET(fdArray[i], &fdSet)) {
           int commSockFd = fdArray[i];
-          char data[MAX_DATA_SIZE];
-          int sentRecvBytes = recvfrom(commSockFd, data, sizeof(data), 0, NULL, 
-            NULL);
           struct sockaddr_in clientAddr;
-          socklen_t clientAddrLen = ADDR_LEN;
-          getpeername(commSockFd, (struct sockaddr*)&clientAddr,&clientAddrLen); 
-
-          printf("Server received %d bytes from client %s:%u\n",sentRecvBytes,
-            inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
+          char data[MAX_DATA_SIZE]; // Later change it to MAX_TLV_SIZE
+          receiveData(commSockFd, &clientAddr, data);
 
           testStructType *clientData = (testStructType*)data;
           if (clientData->a == 0 && clientData->b == 0) {
@@ -180,7 +183,7 @@ int main(int argc, char const *argv[]) {
           resultStructType result;
           result.c = clientData->a + clientData->b;
          
-          sentRecvBytes = sendto(commSockFd,(char*)&result,
+          int sentRecvBytes = sendto(commSockFd,(char*)&result,
             sizeof(resultStructType),0,(struct sockaddr*)&clientAddr,
             ADDR_LEN);
           printf("Server sent %d bytes in reply to client.\n",sentRecvBytes);                    
