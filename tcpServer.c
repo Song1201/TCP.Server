@@ -21,7 +21,7 @@
 
 
 static void addToFdArray(int sockFd, int *fdArray) {
-  for (int i=0; i<MAX_CLIENT_SUPPORTED;i++) {
+  for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
     if (fdArray[i] == NON_EXIST) {
       fdArray[i] = sockFd;
       return;
@@ -117,18 +117,19 @@ static void initFdSet(fd_set *fdSetPtr, int masterSockFd, int *fdArray) {
   } 
 } 
 
-static void createNewConnection(int masterSockFd, int *fdArray) {
+static void acceptConnection(int masterSockFd, int *fdArray) {
   printf("New connection received.\n");
   struct sockaddr_in clientAddr;
-  int clientAddrLen;
+  socklen_t clientAddrLen = ADDR_LEN;
   int commSockFd = accept(masterSockFd, (struct sockaddr*)&clientAddr,
-    (socklen_t*)&clientAddrLen);
+    &clientAddrLen);
+  printf("After acception: %d\n",clientAddrLen);
   if (commSockFd<0) {
     printf("Accept error: errno = %d\n",errno);
     exit(1);
   }
   addToFdArray(commSockFd,fdArray);
-  printf("Connection acceptted from client: %s:%u\n",
+  printf("Connection accepted from client: %s:%u\n",
     inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
 }
 
@@ -150,30 +151,25 @@ int main(int argc, char const *argv[]) {
     fd_set fdSet;
     initFdSet(&fdSet, masterSockFd, fdArray);
     printf("Blocked on select system call...\n");
-    select(getMaxFd(masterSockFd,fdArray)+1,&fdSet,NULL,NULL,NULL);
+    select(getMaxFd(masterSockFd, fdArray)+1, &fdSet, NULL, NULL, NULL);
 
-    if (FD_ISSET(masterSockFd, &fdSet)) 
-      createNewConnection(masterSockFd, fdArray);
+    if (FD_ISSET(masterSockFd, &fdSet))
+      acceptConnection(masterSockFd, fdArray);
     else {
       for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
         if (FD_ISSET(fdArray[i], &fdSet)) {
           int commSockFd = fdArray[i];
-          char dataBuffer[1024];
-          memset(dataBuffer,0,sizeof(dataBuffer));
-          
+          char data[MAX_DATA_SIZE];
+          int sentRecvBytes = recvfrom(commSockFd, data, sizeof(data), 0, NULL, 
+            NULL);
           struct sockaddr_in clientAddr;
-          int clientAddrLen;
-          int sentRecvBytes = recvfrom(commSockFd, dataBuffer, 
-            sizeof(dataBuffer), 0, (struct sockaddr*)&clientAddr, 
-            (socklen_t*)&clientAddrLen);
+          socklen_t clientAddrLen = ADDR_LEN;
+          getpeername(commSockFd, (struct sockaddr*)&clientAddr,&clientAddrLen); 
+
           printf("Server received %d bytes from client %s:%u\n",sentRecvBytes,
             inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
-          if (sentRecvBytes == 0) {
-            close(commSockFd);
-            rmFromFdArray(commSockFd, fdArray);
-            break;
-          }
-          testStructType *clientData = (testStructType*)dataBuffer;
+
+          testStructType *clientData = (testStructType*)data;
           if (clientData->a == 0 && clientData->b == 0) {
             close(commSockFd);
             rmFromFdArray(commSockFd, fdArray);
@@ -183,11 +179,11 @@ int main(int argc, char const *argv[]) {
           }
           resultStructType result;
           result.c = clientData->a + clientData->b;
+         
           sentRecvBytes = sendto(commSockFd,(char*)&result,
             sizeof(resultStructType),0,(struct sockaddr*)&clientAddr,
-            sizeof(struct sockaddr));
-          printf("Server sent %d bytes in reply to client.\n",sentRecvBytes);
-
+            ADDR_LEN);
+          printf("Server sent %d bytes in reply to client.\n",sentRecvBytes);                    
         }
       }
     }

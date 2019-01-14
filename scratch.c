@@ -21,4 +21,5 @@ int main(int argc, char const *argv[]) {
   //   printf("%hu  %c\n",a[i],a[i]);
   // }
   printf("%lu\n",ADDR_LEN);
+
 }

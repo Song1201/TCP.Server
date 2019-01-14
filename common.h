@@ -16,3 +16,4 @@ typedef struct _typeLengthValue {
 #define LOGIN 1
 #define MAX_USERNAME_LEN 20
 #define MAX_PASSWORD_LEN 20
+#define MAX_DATA_SIZE 1024
