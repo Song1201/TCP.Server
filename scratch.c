@@ -20,9 +20,25 @@ int main(int argc, char const *argv[]) {
   // for (int i=0; i<5; i++) {
   //   printf("%hu  %c\n",a[i],a[i]);
   // }
-  unsigned char a = 255;
-  printf("%d\n",a);
-  printf("Unsigned int size: %lu\n",sizeof(unsigned int));
-
-
+  // unsigned char a = 255;
+  // printf("%d\n",a);
+  // printf("Unsigned int size: %lu\n",sizeof(unsigned int));
+  // char a[20] = "";
+  // char a[20];
+  // memset(a, '\0', sizeof(a));
+  // for (int i=0; i<20; i++) {
+  //   printf("%hhd  ",a[i]);
+  // }
+  // printf("\n");
+  // strncpy(a, "abc", 3);
+  // strncpy(a+10, "def", 3);
+  // for (int i=0; i<20; i++) {
+  //   printf("%c  ",a[i]);
+  // }
+  // printf("\n");
+  // printf("%s\n",a+4);
+  char a = -1;
+  a = 1;
+  if (a == 1) printf("a == 1\n");
+  else printf("a != 1\n");
 }

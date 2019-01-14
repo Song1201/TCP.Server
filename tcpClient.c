@@ -66,17 +66,31 @@ int main(int argc, char const *argv[]) {
     unsigned char type;
     scanf("%hhu", &type);
     getchar(); // Remove the '\n' left by scanf
-    unsigned char *data;
+    char data[MAX_DATA_SIZE] = "";
+    memset(data, type, TYPE_FIELD_LEN);
     
-    if (type == 1) {
+    if (type == LOGIN) {
+      memset(data+TYPE_FIELD_LEN, MAX_USERNAME_LEN+1+MAX_PASSWORD_LEN+1, 1);
+
       printf("Please enter username: ");
-      char username[MAX_USERNAME_LEN+1];
+      char username[MAX_USERNAME_LEN+2]; // One for '\n', the other for '\0'
       fgets(username, sizeof(username), stdin);
+      username[strlen(username)-1] = '\0';
       printf("Recorded username: %s\n", username);
       printf("Please enter password: ");
-      char password[MAX_PASSWORD_LEN+1];
+      char password[MAX_PASSWORD_LEN+2];
       fgets(password, sizeof(password), stdin);
       printf("Recorded password: %s\n", password);
+      password[strlen(password)-1] = '\0';
+
+      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, username);
+      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1, password);
+
+
+
+      // printf("%hhu\n%hhu\n%s\n%s\n", data[0], data[TYPE_FIELD_LEN], 
+      //   data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, 
+      //   data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
 
     } else if (type == 2) {
       printf("Unfinished yet!!!\n");
@@ -86,16 +100,8 @@ int main(int argc, char const *argv[]) {
       printf("Invalid input.\n");
       continue;
     }
-    
 
-    printf("Enter a: ");
-    scanf("%u",&clientData.a);
-    printf("Enter b: ");
-    scanf("%u",&clientData.b);
-
-
-
-    int sentRecvBytes = sendto(sockFd,&clientData,sizeof(testStructType),0,
+    int sentRecvBytes = sendto(sockFd,data,sizeof(data),0,
       (struct sockaddr*)&dest,ADDR_LEN);
     printf("Number of bytes sent = %d\n",sentRecvBytes);
     int addrLen = ADDR_LEN;
@@ -107,6 +113,16 @@ int main(int argc, char const *argv[]) {
     }
     printf("Number of bytes received = %d\n",sentRecvBytes);
     printf("Result received = %u\n",result.c);
+    
+
+    // printf("Enter a: ");
+    // scanf("%u",&clientData.a);
+    // printf("Enter b: ");
+    // scanf("%u",&clientData.b);
+
+
+
+
   }  
   
   printf("Application quits.\n");

@@ -11,4 +11,4 @@ connections and sent/received packets.
 5. Deal with overflow, illegal inputs. 
 
 
-Username length, max number of registered users.
+Username length, password length, max number of registered users.
