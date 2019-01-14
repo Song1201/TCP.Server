@@ -54,14 +54,47 @@ int connectToDest(const struct sockaddr_in dest) {
 }
 
 void setupTcpCommunication() {
+
+}
+
+int main(int argc, char const *argv[]) {
   struct sockaddr_in dest = setupDestIPv4();
   int sockFd = connectToDest(dest);
   
   while (1) {
+    printf("Please enter number to choose action:\n1 login\n2 sum\n3 exit\n\n");
+    unsigned char type;
+    scanf("%hhu", &type);
+    getchar(); // Remove the '\n' left by scanf
+    unsigned char *data;
+    
+    if (type == 1) {
+      printf("Please enter username: ");
+      char username[MAX_USERNAME_LEN+1];
+      fgets(username, sizeof(username), stdin);
+      printf("Recorded username: %s\n", username);
+      printf("Please enter password: ");
+      char password[MAX_PASSWORD_LEN+1];
+      fgets(password, sizeof(password), stdin);
+      printf("Recorded password: %s\n", password);
+
+    } else if (type == 2) {
+      printf("Unfinished yet!!!\n");
+    } else if (type == 3) {
+      printf("Unfinished yet!!!\n");
+    } else {
+      printf("Invalid input.\n");
+      continue;
+    }
+    
+
     printf("Enter a: ");
     scanf("%u",&clientData.a);
     printf("Enter b: ");
     scanf("%u",&clientData.b);
+
+
+
     int sentRecvBytes = sendto(sockFd,&clientData,sizeof(testStructType),0,
       (struct sockaddr*)&dest,ADDR_LEN);
     printf("Number of bytes sent = %d\n",sentRecvBytes);
@@ -70,15 +103,12 @@ void setupTcpCommunication() {
       (struct sockaddr*)&dest,(socklen_t*)&addrLen);
     if (sentRecvBytes == 0) {
       printf("Connection to server closed.\n");
-      return;
+      break;
     }
     printf("Number of bytes received = %d\n",sentRecvBytes);
     printf("Result received = %u\n",result.c);
-  }
-}
-
-int main(int argc, char const *argv[]) {
-  setupTcpCommunication();
+  }  
+  
   printf("Application quits.\n");
   return 0;
 }
