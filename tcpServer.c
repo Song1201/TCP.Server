@@ -134,7 +134,7 @@ static void acceptConnection(int masterSockFd, int *fdArray) {
 }
 
 static void receiveData(const int commSockFd, struct sockaddr_in *clientAddrPtr, 
-char *data) {
+unsigned char *data) {
   socklen_t clientAddrLen = ADDR_LEN;
   getpeername(commSockFd, (struct sockaddr*)clientAddrPtr,&clientAddrLen); 
   int sentRecvBytes = recvfrom(commSockFd, data, sizeof(data), 0, NULL, NULL);
@@ -169,9 +169,22 @@ int main(int argc, char const *argv[]) {
         if (FD_ISSET(fdArray[i], &fdSet)) {
           int commSockFd = fdArray[i];
           struct sockaddr_in clientAddr;
-          char data[MAX_DATA_SIZE]; // Later change it to MAX_TLV_SIZE
+          unsigned char data[MAX_DATA_SIZE]; // Later change it to MAX_TLV_SIZE
           receiveData(commSockFd, &clientAddr, data);
 
+          printf("data: %hu  %hu\n",data[0],data[1]);
+          unsigned char type = (unsigned char) data[0];
+          unsigned char length = (unsigned char) data[1];
+          printf("type: %u  length: %u\n",type,length);
+
+          if (type == LOGIN) {
+            printf("LOGIN data received.\n");
+            printf("Data length: %d\n",length);
+          } else {
+            printf("Unknown data type.\n");
+
+          }
+ 
           testStructType *clientData = (testStructType*)data;
           if (clientData->a == 0 && clientData->b == 0) {
             close(commSockFd);

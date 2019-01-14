@@ -20,6 +20,9 @@ int main(int argc, char const *argv[]) {
   // for (int i=0; i<5; i++) {
   //   printf("%hu  %c\n",a[i],a[i]);
   // }
-  printf("%lu\n",ADDR_LEN);
+  unsigned char a = 255;
+  printf("%d\n",a);
+  printf("Unsigned int size: %lu\n",sizeof(unsigned int));
+
 
 }
