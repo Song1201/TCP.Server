@@ -26,7 +26,7 @@ struct sockaddr_in setupDestIPv4() {
   // Remove the '\n' from input string.
   SERVER_IPV4_ADDR[strlen(SERVER_IPV4_ADDR)-1] = '\0';  
   if (inet_pton(AF_INET,SERVER_IPV4_ADDR, &(dest.sin_addr)) != 1) {
-    printf("Failed to read server IPv4 address. Exiting program.\n");
+    printf("Failed to read server IPv4 address. Exiting program... Done.\n");
     exit(1);
   }
   printf("Please enter server port number: ");
@@ -44,7 +44,7 @@ int connectToDest(const struct sockaddr_in dest) {
     printf("Connection to server failed.\nFailed server IPv4 address: %s\n"
       "Failed server port number: %hu\n",inet_ntoa(dest.sin_addr),
       dest.sin_port);
-    printf("Exiting program.\n");
+    printf("Exiting program... Done.\n");
     exit(1);
   }
   printf("Connected to server.\nConnected server IPv4 address: %s\n"
@@ -53,16 +53,13 @@ int connectToDest(const struct sockaddr_in dest) {
   return sockFd;
 }
 
-void setupTcpCommunication() {
-
-}
-
 int main(int argc, char const *argv[]) {
   struct sockaddr_in dest = setupDestIPv4();
   int sockFd = connectToDest(dest);
   
   while (1) {
-    printf("Please enter number to choose action:\n1 login\n2 sum\n3 exit\n\n");
+    printf("Please enter a number to choose action:\n1 login\n2 sum\n3 exit\n"
+      "\n");
     unsigned char type;
     scanf("%hhu", &type);
     getchar(); // Remove the '\n' left by scanf
@@ -70,7 +67,7 @@ int main(int argc, char const *argv[]) {
     memset(data, type, TYPE_FIELD_LEN);
     
     if (type == LOGIN) {
-      memset(data+TYPE_FIELD_LEN, MAX_USERNAME_LEN+1+MAX_PASSWORD_LEN+1, 1);
+      // memset(data+TYPE_FIELD_LEN, MAX_USERNAME_LEN+1+MAX_PASSWORD_LEN+1, 1);
 
       printf("Please enter username: ");
       char username[MAX_USERNAME_LEN+2]; // One for '\n', the other for '\0'
@@ -92,39 +89,51 @@ int main(int argc, char const *argv[]) {
       //   data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, 
       //   data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
 
-    } else if (type == 2) {
-      printf("Unfinished yet!!!\n");
-    } else if (type == 3) {
-      printf("Unfinished yet!!!\n");
-    } else {
-      printf("Invalid input.\n");
+    } else if (type == SUM) {
+      int a, b;
+      printf("Enter a: ");
+      scanf("%d", &a);
+      printf("Enter b: ");
+      scanf("%d",&b); 
+      memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, &a, sizeof(a));
+      memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a), &b, sizeof(b));
+      // printf("Data: %hhu  %hhd  %d  %d\n", data[0], data[1], 
+      //   *(int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN), 
+      //   *(int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a)));
+    } else if (type == EXIT) printf("Sending exit signal to server...\n");
+    else {
+      printf("Invalid input.\n\n");
       continue;
     }
 
-    int sentRecvBytes = sendto(sockFd,data,sizeof(data),0,
+    int sentRecvBytes = sendto(sockFd,data,MAX_DATA_SIZE,0,
       (struct sockaddr*)&dest,ADDR_LEN);
     printf("Number of bytes sent = %d\n",sentRecvBytes);
     int addrLen = ADDR_LEN;
-    sentRecvBytes = recvfrom(sockFd,(char*)&result,sizeof(resultStructType),0,
+    sentRecvBytes = recvfrom(sockFd,data,MAX_DATA_SIZE,0,
       (struct sockaddr*)&dest,(socklen_t*)&addrLen);
-    if (sentRecvBytes == 0) {
-      printf("Connection to server closed.\n");
+    printf("Number of bytes received = %d\n\n",sentRecvBytes);
+
+    if (sentRecvBytes <= 0) {
+      printf("Server closed connection.\n");
       break;
     }
-    printf("Number of bytes received = %d\n",sentRecvBytes);
-    printf("Result received = %u\n",result.c);
-    
 
-    // printf("Enter a: ");
-    // scanf("%u",&clientData.a);
-    // printf("Enter b: ");
-    // scanf("%u",&clientData.b);
-
-
-
-
+    // printf("Result received = %u\n",result.c);
+    type = *data;
+    if (type == TEXT) {
+      printf("%s\n\n",data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN);
+    } else if (type == SUM) {
+      int sum;
+      memcpy(&sum, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, sizeof(sum));
+      printf("Result = %d\n\n", sum);
+    } else if (type == EXIT) {
+      printf("Server confirmed exit signal.\n");
+      break;
+    } else {
+      printf("Server sent unknown data type.\n");
+    } 
   }  
-  
-  printf("Application quits.\n");
+  printf("Exiting program... Done.\n");
   return 0;
 }

@@ -139,6 +139,14 @@ const struct sockaddr_in *clientAddrPtr) {
     clientAddrPtr->sin_addr),ntohs(clientAddrPtr->sin_port));
 }
 
+static unsigned int numConnectedClients(const int *fdArray) {
+  unsigned int numConnectedClients = 0;
+  for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
+    if (fdArray[i] != NON_EXIST) numConnectedClients++;
+  }
+  return numConnectedClients;
+}
+
 int main(int argc, char const *argv[]) {
   const unsigned short SERVER_PORT = loadServerConf();
   int masterSockFd = createMasterSocket(SERVER_PORT);
@@ -159,7 +167,9 @@ int main(int argc, char const *argv[]) {
         if (FD_ISSET(fdArray[i], &fdSet)) {
           char *clientStatusPtr = &fdStatus[i];
           struct sockaddr_in clientAddr;
-          char data[MAX_DATA_SIZE]; // Later change it to MAX_TLV_SIZE
+          // First use to store received data, then also use it to store data 
+          // that needs to be send to client.
+          char data[MAX_DATA_SIZE];
           if (receiveData(fdArray[i], &clientAddr, data) <= 0) {
             printf("Client closed connection. Closing connection on server "
               "side... \n");
@@ -177,23 +187,48 @@ int main(int argc, char const *argv[]) {
             char password[MAX_PASSWORD_LEN+1] = "";
             strcpy(password, 
               data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
-            printf("Received username: %s\nReceived password: %s\n",username, 
+            printf("Received username: %s\nReceived password: %s\n", username, 
               password);
-
+            
+            *data = TEXT;
             // Check user identity
             ENTRY query = {.key=username};
             ENTRY *entry = hsearch(query,FIND);
-            if (entry == NULL) printf("Username doesn't exist.\n");
+            if (entry == NULL) {
+              printf("Username doesn't exist.\n");
+              strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Username doesn't "
+                "exist!");  
+            }
             else if (strcmp(entry->data, password) == 0) {
               *clientStatusPtr = VERIFIED;
               printf("User identity verified.\n");
-            } else printf("Password wrong.\n");
+              strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Welcome to the TCP"
+                " server written by Song ^_^");
+            } else {
+              printf("Wrong password.\n");
+              strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Wrong password!");
+            }
             
-          } else if (*clientStatusPtr == VERIFIED) {
-            printf("Communicating with verified user.\n");
+          } else if (*clientStatusPtr == VERIFIED && type == SUM) {
+            int a = *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN));
+            int b = *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a)));
+            printf("a = %d  b = %d\n", a, b);
+            int sum = a + b;
+            memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, &sum, sizeof(sum));
+            printf("Result = %d\n", 
+              *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN)));
+          } else if (type == EXIT) {
+            printf("Client sent exit signal. Send back confirm signal and "
+              "close connection.\n");
+          } else {
+            printf("Client sent invalid data.\n");
+            *data = TEXT;
+            strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Invalid data is "
+              "received by server!");
           }
  
-          testStructType *clientData = (testStructType*)data;
+
+          // testStructType *clientData = (testStructType*)data;
           // if (clientData->a == 0 && clientData->b == 0) {
           //   close(commSockFd);
           //   rmFromFdArray(commSockFd, fdArray);
@@ -201,20 +236,25 @@ int main(int argc, char const *argv[]) {
           //     clientAddr.sin_addr),ntohs(clientAddr.sin_port));
           //   break;
           // }
-          resultStructType result;
-          result.c = clientData->a + clientData->b;
+          // resultStructType result;
+          // result.c = clientData->a + clientData->b;
          
-          int sentRecvBytes = sendto(fdArray[i],(char*)&result,
-            sizeof(resultStructType),0,(struct sockaddr*)&clientAddr,
+          int sentRecvBytes = sendto(fdArray[i],data,
+            MAX_DATA_SIZE,0,(struct sockaddr*)&clientAddr,
             ADDR_LEN);
-          printf("Server sent %d bytes in reply to client.\n",sentRecvBytes);                    
+          printf("Server sent %d bytes in reply to client.\n",sentRecvBytes); 
+
+          if (type == EXIT) closeConnection(i, fdArray, fdStatus, &clientAddr);
+          break;   
         }
       }
     }
+    printf("\nNumber of currently connected clients: %u\n", 
+      numConnectedClients(fdArray));
   }
-
   return 0;
 }
+
 
 // DO NOT DELETE THESE COMMENTS!!!!!!!!!!!!!!!!!!!!!
 // DO NOT DELETE THESE COMMENTS!!!!!!!!!!!!!!!!!!!!!

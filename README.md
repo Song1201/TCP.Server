@@ -12,3 +12,4 @@ connections and sent/received packets.
 
 
 Username length, password length, max number of registered users.
+Mention unused length field
