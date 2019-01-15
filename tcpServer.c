@@ -108,31 +108,31 @@ static void acceptConnection(int masterSockFd, int *fdArray, char *fdStatus) {
   printf("New connection received.\n");
   struct sockaddr_in clientAddr;
   socklen_t clientAddrLen = ADDR_LEN;
-  int commSockFd = accept(masterSockFd, (struct sockaddr*)&clientAddr,
+  int clientFd = accept(masterSockFd, (struct sockaddr*)&clientAddr,
     &clientAddrLen);
-  if (commSockFd<0) {
+  if (clientFd<0) {
     printf("Accept error: errno = %d\n",errno);
     exit(1);
   }
-  addToFdArray(commSockFd, fdArray, fdStatus);
+  addToFdArray(clientFd, fdArray, fdStatus);
   printf("Connection accepted from client: %s:%u\n",
     inet_ntoa(clientAddr.sin_addr),ntohs(clientAddr.sin_port));
 }
 
-static int receiveData(const int commSockFd, struct sockaddr_in *clientAddrPtr, 
+static int receiveData(const int clientFd, struct sockaddr_in *clientAddrPtr, 
 char *data) {
   socklen_t clientAddrLen = ADDR_LEN;
-  getpeername(commSockFd, (struct sockaddr*)clientAddrPtr,&clientAddrLen); 
-  int sentRecvBytes = recvfrom(commSockFd, data, MAX_DATA_SIZE, 0, NULL, NULL);
+  getpeername(clientFd, (struct sockaddr*)clientAddrPtr,&clientAddrLen); 
+  int sentRecvBytes = recvfrom(clientFd, data, MAX_DATA_SIZE, 0, NULL, NULL);
   printf("Server received %d bytes from client %s:%u\n",sentRecvBytes,
     inet_ntoa(clientAddrPtr->sin_addr),ntohs(clientAddrPtr->sin_port));
   return sentRecvBytes;
 }
 
-static void closeConnection(int *commSockFdPtr, char *clientStatusPtr, 
+static void closeConnection(int *clientFdPtr, char *clientStatusPtr, 
 const struct sockaddr_in *clientAddrPtr) {
-  close(*commSockFdPtr);
-  *commSockFdPtr = *clientStatusPtr = NON_EXIST;
+  close(*clientFdPtr);
+  *clientFdPtr = *clientStatusPtr = NON_EXIST;
   printf("Server closed connection with client: %s:%u\n",inet_ntoa(
     clientAddrPtr->sin_addr),ntohs(clientAddrPtr->sin_port));
 }
@@ -145,47 +145,49 @@ static void printNumConnectedClients(const int *fdArray) {
   printf("\nNumber of currently connected clients: %u\n", numConnectedClients);
 }
 
-static unsigned char processAndReply(char *data, char *clientStatusPtr, 
-int commSockFd, struct sockaddr_in *clientAddrPtr) {
+static void clientLogin(char *data, char *clientStatusPtr) {
+  printf("Verifying client identity...\n");
+  char username[MAX_USERNAME_LEN+1] = "";
+  strcpy(username, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN);
+  char password[MAX_PASSWORD_LEN+1] = "";
+  strcpy(password, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
+  printf("Received username: %s\nReceived password: %s\n", username, password);
+  
+  *data = TEXT;
+  // Check user identity
+  ENTRY query = {.key=username};
+  ENTRY *entry = hsearch(query,FIND);
+  if (entry == NULL) {
+    printf("Username doesn't exist.\n");
+    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Username doesn't "
+      "exist!");  
+  }
+  else if (strcmp(entry->data, password) == 0) {
+    *clientStatusPtr = VERIFIED;
+    printf("User identity verified.\n");
+    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Welcome to the TCP"
+      " server written by Song ^_^");
+  } else {
+    printf("Wrong password.\n");
+    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Wrong password!");
+  }  
+}
+
+static void clientSum(char *data) {
+  int a = *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN));
+  int b = *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a)));
+  printf("a = %d  b = %d\n", a, b);
+  int sum = a + b;
+  memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, &sum, sizeof(sum));
+  printf("Result = %d\n", *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN)));
+}
+
+static unsigned char processAndPrepareData(char *data, char *clientStatusPtr) {
   unsigned char type = (unsigned char) data[0];
   if (*clientStatusPtr == CONNECTED && type == LOGIN) {
-    printf("Verifying client identity...\n");
-    char username[MAX_USERNAME_LEN+1] = "";
-    strcpy(username, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN);
-    char password[MAX_PASSWORD_LEN+1] = "";
-    strcpy(password, 
-      data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
-    printf("Received username: %s\nReceived password: %s\n", username, 
-      password);
-    
-    *data = TEXT;
-    // Check user identity
-    ENTRY query = {.key=username};
-    ENTRY *entry = hsearch(query,FIND);
-    if (entry == NULL) {
-      printf("Username doesn't exist.\n");
-      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Username doesn't "
-        "exist!");  
-    }
-    else if (strcmp(entry->data, password) == 0) {
-      *clientStatusPtr = VERIFIED;
-      printf("User identity verified.\n");
-      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Welcome to the TCP"
-        " server written by Song ^_^");
-    } else {
-      printf("Wrong password.\n");
-      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Wrong password!");
-    }
-    
-  } else if (*clientStatusPtr == VERIFIED && type == SUM) {
-    int a = *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN));
-    int b = *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a)));
-    printf("a = %d  b = %d\n", a, b);
-    int sum = a + b;
-    memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, &sum, sizeof(sum));
-    printf("Result = %d\n", 
-      *((int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN)));
-  } else if (type == EXIT) {
+    clientLogin(data, clientStatusPtr);
+  } else if (*clientStatusPtr == VERIFIED && type == SUM) clientSum(data);
+  else if (type == EXIT) {
     printf("Client sent exit signal. Reply confirm signal and "
       "close connection.\n");
   } else {
@@ -194,12 +196,31 @@ int commSockFd, struct sockaddr_in *clientAddrPtr) {
     strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Invalid data is "
       "received by server!");
   }
-  
-  int sentRecvBytes = sendto(commSockFd, data,
-    MAX_DATA_SIZE,0,(struct sockaddr*)clientAddrPtr,
-    ADDR_LEN);
-  printf("Server replied %d bytes to client.\n",sentRecvBytes); 
   return type;
+}
+
+static unsigned char processAndReply(char *data, char *clientStatusPtr, 
+const int clientFd, struct sockaddr_in *clientAddrPtr) {
+  unsigned char type = processAndPrepareData(data, clientStatusPtr);
+  int sentRecvBytes = sendto(clientFd, data, MAX_DATA_SIZE, 0, 
+    (struct sockaddr*)clientAddrPtr, ADDR_LEN);
+  printf("Server replied %d bytes to client.\n", sentRecvBytes); 
+  return type;
+}
+
+static void talkToClient(int *clientFdPtr, char *clientStatusPtr) {
+  struct sockaddr_in clientAddr;
+  // First use to store received data, then also use it to store data 
+  // that needs to be send to client.
+  char data[MAX_DATA_SIZE];
+  if (receiveData(*clientFdPtr, &clientAddr, data) <= 0) {
+    printf("Client closed connection. Closing connection on server "
+      "side... \n");
+    closeConnection(clientFdPtr, clientStatusPtr, &clientAddr);
+    return;
+  }
+  if (processAndReply(data, clientStatusPtr, *clientFdPtr, &clientAddr) == EXIT)
+   closeConnection(clientFdPtr, clientStatusPtr, &clientAddr);
 }
 
 int main(int argc, char const *argv[]) {
@@ -220,21 +241,8 @@ int main(int argc, char const *argv[]) {
     else {
       for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
         if (FD_ISSET(fdArray[i], &fdSet)) {
-          int *commSockFdPtr = &fdArray[i];
-          char *clientStatusPtr = &fdStatus[i];
-          struct sockaddr_in clientAddr;
-          // First use to store received data, then also use it to store data 
-          // that needs to be send to client.
-          char data[MAX_DATA_SIZE];
-          if (receiveData(*commSockFdPtr, &clientAddr, data) <= 0) {
-            printf("Client closed connection. Closing connection on server "
-              "side... \n");
-            closeConnection(commSockFdPtr, clientStatusPtr, &clientAddr);
-            break;
-          }
-          if (processAndReply(data, clientStatusPtr, fdArray[i], &clientAddr) 
-          == EXIT) closeConnection(commSockFdPtr, clientStatusPtr, &clientAddr);
-          break;   
+          talkToClient(&fdArray[i], &fdStatus[i]);
+          break;
         }
       }
     }

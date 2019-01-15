@@ -125,7 +125,6 @@ int main(int argc, char const *argv[]) {
       printf("Server closed connection.\n");
       break;
     }
-
     if (processReceivedData(data) == EXIT) break;
   }  
   printf("Exiting program... Done.\n");
