@@ -10,7 +10,6 @@
 #include <errno.h> // To use errno
 
 #define IPV4_ADDR_MAX_LEN 15
-#define TIMEOUT 20
 #define ADDR_LEN sizeof(struct sockaddr)
 
 testStructType clientData;
@@ -38,9 +37,8 @@ struct sockaddr_in setupDestIPv4() {
 
 int connectToDest(const struct sockaddr_in dest) {
   int sockFd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-  // int addrLen = sizeof(struct sockaddr);
   printf("Conneting to server... It takes at most 3 minutes.\n\n");
-  if (connect(sockFd,(struct sockaddr*)&dest,ADDR_LEN) != 0) {
+  if (connect(sockFd, (struct sockaddr*)&dest, ADDR_LEN) != 0) {
     printf("Connection to server failed.\nFailed server IPv4 address: %s\n"
       "Failed server port number: %hu\n",inet_ntoa(dest.sin_addr),
       dest.sin_port);
@@ -53,86 +51,83 @@ int connectToDest(const struct sockaddr_in dest) {
   return sockFd;
 }
 
+static unsigned char askForAction(char *data) {
+  printf("Please enter a number to choose action:\n1 login\n2 sum\n3 exit\n"
+    "\n");
+  unsigned char type;
+  scanf("%hhu", &type);
+  getchar(); // Remove the '\n' left by scanf
+  memset(data, type, TYPE_FIELD_LEN);
+  return type;
+}
+
+static void getLoginData(char *data) {
+  printf("Please enter username: ");
+  char username[MAX_USERNAME_LEN+2]; // One for '\n', the other for '\0'
+  fgets(username, sizeof(username), stdin);
+  username[strlen(username)-1] = '\0'; // Remove the '\n' from input string.
+  strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, username);
+  printf("Please enter password: ");
+  char password[MAX_PASSWORD_LEN+2];
+  fgets(password, sizeof(password), stdin);
+  password[strlen(password)-1] = '\0'; // Remove the '\n' from input string.
+  strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1, password);
+}
+
+static void getSumData(char *data) {
+  int a, b;
+  printf("Enter a: ");
+  scanf("%d", &a);
+  printf("Enter b: ");
+  scanf("%d", &b); 
+  memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, &a, sizeof(a));
+  memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a), &b, sizeof(b));  
+}
+
+static int sendAndReceiveData(int sockFd, char *data, 
+struct sockaddr_in *destPtr) {
+  int sentRecvBytes = sendto(sockFd, data, MAX_DATA_SIZE, 0, NULL, 0);
+  printf("Number of bytes sent = %d\n",sentRecvBytes);
+  sentRecvBytes = recvfrom(sockFd,data,MAX_DATA_SIZE, 0, NULL, NULL);
+  printf("Number of bytes received = %d\n\n",sentRecvBytes);
+  return sentRecvBytes;
+}
+
+static unsigned char processReceivedData(const char *data) {
+  unsigned char type = *data;
+  if (type == TEXT) {
+    printf("%s\n\n",data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN);
+  } else if (type == SUM) {
+    int sum;
+    memcpy(&sum, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, sizeof(sum));
+    printf("Result = %d\n\n", sum);
+  } else if (type == EXIT) printf("Server confirmed exit signal.\n");
+  else printf("Server sent unknown data type.\n");
+  return type;
+}
+
 int main(int argc, char const *argv[]) {
   struct sockaddr_in dest = setupDestIPv4();
   int sockFd = connectToDest(dest);
   
   while (1) {
-    printf("Please enter a number to choose action:\n1 login\n2 sum\n3 exit\n"
-      "\n");
-    unsigned char type;
-    scanf("%hhu", &type);
-    getchar(); // Remove the '\n' left by scanf
     char data[MAX_DATA_SIZE] = "";
-    memset(data, type, TYPE_FIELD_LEN);
+    unsigned char type = askForAction(data);
     
-    if (type == LOGIN) {
-      // memset(data+TYPE_FIELD_LEN, MAX_USERNAME_LEN+1+MAX_PASSWORD_LEN+1, 1);
-
-      printf("Please enter username: ");
-      char username[MAX_USERNAME_LEN+2]; // One for '\n', the other for '\0'
-      fgets(username, sizeof(username), stdin);
-      username[strlen(username)-1] = '\0';
-      printf("Recorded username: %s\n", username);
-      printf("Please enter password: ");
-      char password[MAX_PASSWORD_LEN+2];
-      fgets(password, sizeof(password), stdin);
-      printf("Recorded password: %s\n", password);
-      password[strlen(password)-1] = '\0';
-
-      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, username);
-      strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1, password);
-
-
-
-      // printf("%hhu\n%hhu\n%s\n%s\n", data[0], data[TYPE_FIELD_LEN], 
-      //   data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, 
-      //   data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
-
-    } else if (type == SUM) {
-      int a, b;
-      printf("Enter a: ");
-      scanf("%d", &a);
-      printf("Enter b: ");
-      scanf("%d",&b); 
-      memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, &a, sizeof(a));
-      memcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a), &b, sizeof(b));
-      // printf("Data: %hhu  %hhd  %d  %d\n", data[0], data[1], 
-      //   *(int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN), 
-      //   *(int*)(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+sizeof(a)));
-    } else if (type == EXIT) printf("Sending exit signal to server...\n");
+    if (type == LOGIN) getLoginData(data);
+    else if (type == SUM) getSumData(data);
+    else if (type == EXIT) printf("Sending exit signal to server...\n");
     else {
       printf("Invalid input.\n\n");
       continue;
     }
 
-    int sentRecvBytes = sendto(sockFd,data,MAX_DATA_SIZE,0,
-      (struct sockaddr*)&dest,ADDR_LEN);
-    printf("Number of bytes sent = %d\n",sentRecvBytes);
-    int addrLen = ADDR_LEN;
-    sentRecvBytes = recvfrom(sockFd,data,MAX_DATA_SIZE,0,
-      (struct sockaddr*)&dest,(socklen_t*)&addrLen);
-    printf("Number of bytes received = %d\n\n",sentRecvBytes);
-
-    if (sentRecvBytes <= 0) {
+    if (sendAndReceiveData(sockFd, data, &dest) <= 0) {
       printf("Server closed connection.\n");
       break;
     }
 
-    // printf("Result received = %u\n",result.c);
-    type = *data;
-    if (type == TEXT) {
-      printf("%s\n\n",data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN);
-    } else if (type == SUM) {
-      int sum;
-      memcpy(&sum, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, sizeof(sum));
-      printf("Result = %d\n\n", sum);
-    } else if (type == EXIT) {
-      printf("Server confirmed exit signal.\n");
-      break;
-    } else {
-      printf("Server sent unknown data type.\n");
-    } 
+    if (processReceivedData(data) == EXIT) break;
   }  
   printf("Exiting program... Done.\n");
   return 0;
