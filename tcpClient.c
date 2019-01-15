@@ -10,7 +10,6 @@
 #include <errno.h> // To use errno
 
 #define IPV4_ADDR_MAX_LEN 15
-#define ADDR_LEN sizeof(struct sockaddr)
 
 testStructType clientData;
 resultStructType result;

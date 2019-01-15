@@ -7,6 +7,7 @@
 #define MAX_USERNAME_LEN 20
 #define MAX_PASSWORD_LEN 20
 #define MAX_DATA_SIZE 1024
+#define ADDR_LEN sizeof(struct sockaddr)
 
 typedef struct _testStruct {
   unsigned int a;

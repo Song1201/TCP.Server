@@ -14,10 +14,8 @@
 #define MAX_NUM_USER 10000
 #define MAX_CONNECT_REQUEST 5
 #define NON_EXIST -1
-// #define EMPTY 0
 #define CONNECTED 1
 #define VERIFIED 2
-#define ADDR_LEN sizeof(struct sockaddr)
 
 static void addToFdArray(int sockFd, int *fdArray, char *fdStatus) {
   for (int i=0; i<MAX_CLIENT_SUPPORTED; i++) {
@@ -178,7 +176,6 @@ int main(int argc, char const *argv[]) {
           }
 
           unsigned char type = (unsigned char) data[0];
-          // unsigned char length = (unsigned char) data[TYPE_FIELD_LEN];
 
           if (*clientStatusPtr == CONNECTED && type == LOGIN) {
             printf("Verifying client identity...\n");
@@ -226,18 +223,6 @@ int main(int argc, char const *argv[]) {
             strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Invalid data is "
               "received by server!");
           }
- 
-
-          // testStructType *clientData = (testStructType*)data;
-          // if (clientData->a == 0 && clientData->b == 0) {
-          //   close(commSockFd);
-          //   rmFromFdArray(commSockFd, fdArray);
-          //   printf("Server closes connection with client: %s:%u\n",inet_ntoa(
-          //     clientAddr.sin_addr),ntohs(clientAddr.sin_port));
-          //   break;
-          // }
-          // resultStructType result;
-          // result.c = clientData->a + clientData->b;
          
           int sentRecvBytes = sendto(fdArray[i],data,
             MAX_DATA_SIZE,0,(struct sockaddr*)&clientAddr,
