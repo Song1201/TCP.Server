@@ -1,5 +1,5 @@
-# TCP Server
-A TCP server to allow clients connect to server and let verified user use server's computational resources.
+# TCP Server on Linux
+A TCP server on Linux to allow clients connect to server and let verified user use server's computational resources.
 
 ## Compling
 In TCP.Server directory, use command
