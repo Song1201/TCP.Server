@@ -1,4 +1,4 @@
-# Project Title
+# TCP Server
 A TCP server to allow clients connect to server and let verified user use server's computing resources.
 
 ## Compling
