@@ -1,24 +1,29 @@
-Use "make" to create all executable.
+# Project Title
+A TCP server to allow clients connect to server and let verified user use server's computing resources.
 
+## Compling
+In TCP.Server directory, use command
+```
+make
+```
+to create all executables. You might need to install libssl-dev before make.
 
+## Deployment
+Executable "tcpServer" and configuration file "server.conf" need to be deployed on server machine. "tcpClient" need to be 
+deployed on client machine. 
 
-Run tcpServer on server machine. Client can connect to server on client machine 
-by running tcpClient.
+## Usage
+Run tcpServer on server machine, then clients can connect to server and login to server on client machine by running tcpClient. Clients need to know the server IPv4 address and listening port number to connect to server. 
 
-To add a new user on server, 
+## Configuration
+1. To change the port server listening on, change the number in the first line in "server.conf".
+2. To add new user to the server, run "serverRegister" and follow instructions.
+3. To delete a user, open "server.conf" and delete the user's corresponding line.
 
-1. Run tcpServer executable on server. Then all clients who run tcpClient with
-a registered identity should be able to connected to the server. Identity 
-verification: Client send password and username to server. Server has a hash 
-table where username is the key, hash code of the password is the data. If the 
-username is found and the hash code of the password matches, the connection can
-be built.
-2. Server and client side console should print suitable messages to describe 
-connections and sent/received packets.
-3. Client can send 2 integers to the server, then server sends back the sum.
-4. Setup connection ending signals.
-5. Deal with overflow, illegal inputs. 
+Restart tcpServer to apply changes.
 
-
-Username length, password length, max number of registered users.
-Mention unused length field
+## Notes
+1. In "server.conf", there can only be a number in the first line which represent the port number to be listening on. Each user's 
+information is recorded as a line in "server.conf". In each line, the first string is username, the second string is the SHA256 
+digest of user's password.
+2. The max number of connecting clients is 32, the max number of registered user is 10000 and the max number of connect request in queue is 5. The number can be changed by change the #define statement in tcpServer.c
