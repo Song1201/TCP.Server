@@ -11,16 +11,14 @@
 
 #define IPV4_ADDR_MAX_LEN 15
 
-testStructType clientData;
-resultStructType result;
-
 struct sockaddr_in setupDestIPv4() {
   // sockaddr_in means destination(server) address is IPv4 address
   struct sockaddr_in dest; 
   dest.sin_family = AF_INET; // Address Family is IPv4 address
   printf("Please enter server IPv4 address: ");
-  char SERVER_IPV4_ADDR[IPV4_ADDR_MAX_LEN+1];
-  fgets(SERVER_IPV4_ADDR,sizeof(SERVER_IPV4_ADDR),stdin);
+  // One for '\n', the other for '\0'
+  char SERVER_IPV4_ADDR[IPV4_ADDR_MAX_LEN+2]; 
+  fgets(SERVER_IPV4_ADDR, sizeof(SERVER_IPV4_ADDR), stdin);
   // Remove the '\n' from input string.
   SERVER_IPV4_ADDR[strlen(SERVER_IPV4_ADDR)-1] = '\0';  
   if (inet_pton(AF_INET,SERVER_IPV4_ADDR, &(dest.sin_addr)) != 1) {
