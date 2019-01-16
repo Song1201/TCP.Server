@@ -1,16 +1,19 @@
 GCCFLAGS = -ggdb -Wall -std=c11
 
-serverRegister: serverRegister.o
-	gcc $(GCCFLAGS) -o serverRegister serverRegister.o -lssl -lcrypto 
+tcpServer: tcpServer.o hashPassword.o
+	gcc $(GCCFLAGS) -o tcpServer tcpServer.o hashPassword.o -lssl -lcrypto
 
-serverRegister.o: serverRegister.c common.h
+tcpServer.o: tcpServer.c common.h hashPassword.h
+	gcc $(GCCFLAGS) -c tcpServer.c
+
+serverRegister: serverRegister.o hashPassword.o
+	gcc $(GCCFLAGS) -o serverRegister serverRegister.o hashPassword.o -lssl -lcrypto 
+
+serverRegister.o: serverRegister.c common.h hashPassword.h
 	gcc $(GCCFLAGS) -c serverRegister.c
 
-tcpServer: tcpServer.o 
-	gcc $(GCCFLAGS) -o tcpServer tcpServer.o
-
-tcpServer.o: tcpServer.c common.h
-	gcc $(GCCFLAGS) -c tcpServer.c
+hashPassword.o: hashPassword.c hashPassword.h
+	gcc $(GCCFLAGS) -c hashPassword.c
 
 tcpClient: tcpClient.o
 	gcc $(GCCFLAGS) -o tcpClient tcpClient.o

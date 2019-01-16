@@ -3,14 +3,14 @@
 #include <sys/select.h> // To use fd_set
 #include <stdio.h> // To use printf
 #include <errno.h> // To use errno
-#include "common.h" // Message stucture
+#include "common.h" // Shared part of tcpServer.c and tcpClient.c
 #include <stdlib.h> // To use exit
 #include <unistd.h> // To use close
 #include <search.h> // To use hcreate(), hsearch()
 #include <string.h> // To use strcpy()
+#include "hashPassword.h"
 
 #define MAX_CLIENT_SUPPORTED 32
-#define PASSWORD_HASH_LEN 256
 #define MAX_NUM_USER 10000
 #define MAX_CONNECT_REQUEST 5
 #define NON_EXIST -1
@@ -35,32 +35,38 @@ static int getMaxFd(const int masterSockFd, const int *fdArray) {
   return max;
 }
 
-static char *strdup(const char *origin) {
-  char *copy = malloc(sizeof(origin));
-  strcpy(copy, origin);
+static unsigned char *memDup(const unsigned char *origin, const unsigned int length) {
+  unsigned char *copy = malloc(length);
+  memcpy(copy, origin, length);
   return copy;
 }
 
-static unsigned short loadServerConf() {
-  FILE *confPtr = fopen("server.conf","r");
-
-  unsigned short SERVER_PORT;
-  fscanf(confPtr,"%hu",&SERVER_PORT);
-
+static void readUserInfo(FILE *confPtr) {
   if (hcreate(MAX_NUM_USER) == 0) {
     printf("Failed to create hash table for user info.\n");
     exit(1);
   } 
-    
   char username[MAX_USERNAME_LEN+1];
-  char passwordHash[PASSWORD_HASH_LEN+1];
   while (fscanf(confPtr,"%s",username) != EOF) {
-    fscanf(confPtr,"%s",passwordHash);
-    ENTRY userEntry = {.key=strdup(username), .data=strdup(passwordHash)};
+    unsigned char pwDigest[PW_DIGEST_LEN];
+    char pwDigestString[PW_DIGEST_LEN*2];
+    fscanf(confPtr,"%s",pwDigestString);
+    // Convert password digest hex format string to real binary digest
+    for (int i=0; i<PW_DIGEST_LEN; i++) {
+      sscanf(pwDigestString+2*i, "%2x", (unsigned int*)(pwDigest+i));
+    }
+    ENTRY userEntry = {.key=(char*)memDup((unsigned char*)username, 
+      strlen(username)), .data=memDup(pwDigest, PW_DIGEST_LEN)};
     hsearch(userEntry,ENTER);
   }
   fclose(confPtr);
+}
 
+static unsigned short loadServerConf() {
+  FILE *confPtr = fopen("server.conf","r");
+  unsigned short SERVER_PORT;
+  fscanf(confPtr,"%hu",&SERVER_PORT);
+  readUserInfo(confPtr);
   return SERVER_PORT;
 }
 
@@ -145,32 +151,37 @@ static void printNumConnectedClients(const int *fdArray) {
   printf("\nNumber of currently connected clients: %u\n", numConnectedClients);
 }
 
+static void verifyUser(char *username, const char *password, char *data, 
+char *clientStatusPtr) {
+  ENTRY query = {.key=username};
+  ENTRY *entry = hsearch(query,FIND);
+  if (entry == NULL) {
+    printf("Username doesn't exist.\n");
+    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Username doesn't exist!");  
+    return;
+  }
+  unsigned char pwDigest[PW_DIGEST_LEN];
+  hashPassword(password, pwDigest);
+  if (memcmp(entry->data, pwDigest, PW_DIGEST_LEN) == 0) {
+    *clientStatusPtr = VERIFIED;
+    printf("User identity verified.\n");
+    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Welcome to the TCP server " 
+      "written by Song ^_^");
+  } else {
+    printf("Wrong password.\n");
+    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Wrong password!");
+  }
+}
+
 static void clientLogin(char *data, char *clientStatusPtr) {
   printf("Verifying client identity...\n");
   char username[MAX_USERNAME_LEN+1] = "";
   strcpy(username, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN);
   char password[MAX_PASSWORD_LEN+1] = "";
   strcpy(password, data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN+MAX_USERNAME_LEN+1);
-  printf("Received username: %s\nReceived password: %s\n", username, password);
-  
+  printf("Received username: %s\nReceived password: ******\n", username);
   *data = TEXT;
-  // Check user identity
-  ENTRY query = {.key=username};
-  ENTRY *entry = hsearch(query,FIND);
-  if (entry == NULL) {
-    printf("Username doesn't exist.\n");
-    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Username doesn't "
-      "exist!");  
-  }
-  else if (strcmp(entry->data, password) == 0) {
-    *clientStatusPtr = VERIFIED;
-    printf("User identity verified.\n");
-    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Welcome to the TCP"
-      " server written by Song ^_^");
-  } else {
-    printf("Wrong password.\n");
-    strcpy(data+TYPE_FIELD_LEN+LENGTH_FEILD_LEN, "Wrong password!");
-  }  
+  verifyUser(username, password, data, clientStatusPtr);
 }
 
 static void clientSum(char *data) {

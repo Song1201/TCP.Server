@@ -1,8 +1,7 @@
-#include "common.h"
+#include "common.h" // To use MAX_USERNAME_LEN
 #include <stdio.h> // To use printf
 #include <string.h> // To use strlen()
-#include <openssl/evp.h>
-#include "server.h"
+#include "hashPassword.h"
 
 #define ADD_USER 1
 #define REGISTER_EXIT 2
@@ -13,16 +12,6 @@ static unsigned char askForAction() {
   scanf("%hhu", &action);
   getchar(); // Remove the '\n' left by scanf
   return action;
-}
-
-static void hashPassword(char *password, unsigned char *pwDigest) {
-  // Hash the password
-  EVP_MD_CTX *hasher;
-  hasher = EVP_MD_CTX_create();
-  EVP_DigestInit_ex(hasher, EVP_sha256(), NULL);
-  EVP_DigestUpdate(hasher, password, strlen(password));
-  EVP_DigestFinal_ex(hasher, pwDigest, NULL);
-  EVP_MD_CTX_destroy(hasher);
 }
 
 static void askForUserInfo(char *username, char *password) {
@@ -38,7 +27,7 @@ static void askForUserInfo(char *username, char *password) {
   password[strlen(password)-1] = '\0';
 }
 
-static void registerUser(char *username, char *password) {
+static void registerUser(const char *username, const char *password) {
   FILE *filePtr = fopen("server.conf", "a");
   fprintf(filePtr, "%s ", username);
 
@@ -68,32 +57,3 @@ int main() {
   }
   return 0;
 }
-
-      // FILE *filePtr = fopen("scratch.conf", "r");
-      // unsigned char digestRead[EVP_MAX_MD_SIZE] = "";
-
-      // unsigned char digestReadString[EVP_MAX_MD_SIZE] = "";
-      // fscanf(filePtr, "%s", digestReadString);
-      // fclose(filePtr);
-
-      // printf("digest read string: %s\n",digestReadString);
-
-      // for (int i=0; i<strlen(digestReadString); i++) {
-      //   sscanf(digestReadString+2*i, "%2x", (unsigned int*)(digestRead+i));
-      // }
-
-      
-
-      // for (int i=0; i<strlen(digestRead); i++) {
-      //   printf("%02x", digestRead[i]);
-      // }
-      // printf("\n");
-
-      // printf("Digest length: %d\n", digestLen);
-      // printf("String length: %d\n", strlen(digest));
-      // for (int i=0; i<digestLen; i++) {
-      //   printf("%02x", digest[i]);
-      // }
-      // printf("\n");
-
-      // FILE *filePtr = fopen("scratch.conf", "a");
