@@ -1,5 +1,7 @@
 GCCFLAGS = -ggdb -Wall -std=c11
 
+all: tcpClient serverRegister tcpServer
+
 tcpServer: tcpServer.o hashPassword.o
 	gcc $(GCCFLAGS) -o tcpServer tcpServer.o hashPassword.o -lssl -lcrypto
 

@@ -1,3 +1,12 @@
+Use "make" to create all executable.
+
+
+
+Run tcpServer on server machine. Client can connect to server on client machine 
+by running tcpClient.
+
+To add a new user on server, 
+
 1. Run tcpServer executable on server. Then all clients who run tcpClient with
 a registered identity should be able to connected to the server. Identity 
 verification: Client send password and username to server. Server has a hash 
